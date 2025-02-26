@@ -1,25 +1,19 @@
-//
-//  File.swift
-//  
-//
-//  Created by Madhanrajan Varadharajan  on 26/02/2025.
-//
-
+//App.swift
 import Foundation
 
-// Application Protocol
 public protocol ApplicationProtocol {
     mutating func get(_ path: String, handler: @escaping Handler)
     mutating func post(_ path: String, handler: @escaping Handler)
     mutating func put(_ path: String, handler: @escaping Handler)
     mutating func delete(_ path: String, handler: @escaping Handler)
-    mutating func run(host: String, port: Int)  // Changed to mutating
+    mutating func use(_ middleware: Middleware)
+    mutating func run(host: String, port: Int)
 }
 
-// App Implementation
 public struct App: ApplicationProtocol {
     private var routes: [Route] = []
     private var router: RouterProtocol
+    private var middlewares: [Middleware] = []
     private let serverFactory: (RequestHandlerType) -> ServerType
     
     public init(
@@ -46,12 +40,21 @@ public struct App: ApplicationProtocol {
         registerRoute(method: .delete, path: path, handler: handler)
     }
     
+    public mutating func use(_ middleware: Middleware) {
+        middlewares.append(middleware)
+    }
+    
     public mutating func run(host: String = "localhost", port: Int = 8000) {
         print("Starting server at http://\(host):\(port)")
         
-        let requestHandler = RouterRequestHandler(router: router)
-        let server = serverFactory(requestHandler)
+        // Create a middleware request handler that wraps the router handler
+        let routerHandler = RouterRequestHandler(router: router)
+        let middlewareHandler = MiddlewareRequestHandler(
+            handler: routerHandler,
+            middlewares: middlewares
+        )
         
+        let server = serverFactory(middlewareHandler)
         server.start(host: host, port: port)
         
         RunLoop.main.run()

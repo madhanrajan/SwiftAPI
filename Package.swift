@@ -3,24 +3,34 @@ import PackageDescription
 
 let package = Package(
     name: "SwiftAPI",
+    platforms: [
+        .macOS(.v10_15)
+    ],
     products: [
-        .library(name: "SwiftAPI", targets: ["SwiftAPI"]),
-        .executable(name: "Example", targets: ["Example"])
+        .executable(name: "SwiftAPI", targets: ["SwiftAPI"]),
+        .library(name: "SwiftAPICore", targets: ["SwiftAPICore"])
     ],
     dependencies: [
-        // In a real implementation, you might add SwiftNIO here
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
-
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0")
     ],
     targets: [
-        .target(name: "SwiftAPI", dependencies: [
-        
-            .product(name: "NIO", package: "swift-nio"),
-            .product(name: "NIOHTTP1", package: "swift-nio"),
-        ]),
-        .executableTarget(name: "Example", dependencies: ["SwiftAPI"]),
-        .testTarget(name: "SwiftAPITests", dependencies: ["SwiftAPI"]),
-        
-        
+        // Main executable target
+        .executableTarget(
+            name: "SwiftAPI",
+            dependencies: ["SwiftAPICore"]
+        ),
+        // Library target containing your server framework
+        .target(
+            name: "SwiftAPICore",
+            dependencies: [
+                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio")
+            ]
+        ),
+        // Tests
+        .testTarget(
+            name: "SwiftAPICoreTests",
+            dependencies: ["SwiftAPICore"]
+        )
     ]
 )

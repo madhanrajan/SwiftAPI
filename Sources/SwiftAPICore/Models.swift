@@ -5,30 +5,18 @@
 //  Created by Madhanrajan Varadharajan  on 26/02/2025.
 //
 
-// Models.swift
 import Foundation
 
+// Base HTTP types
 public enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
     case delete = "DELETE"
+    case options = "OPTIONS"
 }
 
-public typealias Handler = (Request) -> Response
-
-public struct Route {
-    let method: HTTPMethod
-    let path: String
-    let handler: Handler
-    
-    init(method: HTTPMethod, path: String, handler: @escaping Handler) {
-        self.method = method
-        self.path = path
-        self.handler = handler
-    }
-}
-
+// Request-related types
 public protocol RequestProtocol {
     var method: HTTPMethod { get }
     var path: String { get }
@@ -63,6 +51,7 @@ public struct Request: RequestProtocol {
     }
 }
 
+// Response-related types
 public protocol ResponseProtocol {
     var statusCode: Int { get }
     var headers: [String: String] { get }
@@ -85,3 +74,19 @@ public struct Response: ResponseProtocol {
         try? JSONSerialization.data(withJSONObject: body, options: [])
     }
 }
+
+// Handler and Route definitions
+public typealias Handler = (Request) -> Response
+
+public struct Route {
+    public let method: HTTPMethod
+    public let path: String
+    public let handler: Handler
+    
+    public init(method: HTTPMethod, path: String, handler: @escaping Handler) {
+        self.method = method
+        self.path = path
+        self.handler = handler
+    }
+}
+

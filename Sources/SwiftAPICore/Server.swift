@@ -5,7 +5,6 @@
 //  Created by Madhanrajan Varadharajan  on 26/02/2025.
 //
 
-// Server.swift
 import Foundation
 import NIO
 import NIOHTTP1
@@ -16,10 +15,6 @@ public protocol ServerType {
     func stop()
 }
 
-public protocol RequestHandlerType {
-    func handle(request: Request) -> Response
-}
-
 public protocol RequestBuilderProtocol {
     mutating func setHead(header: HTTPRequestHead)
     mutating func appendBody(buffer: ByteBuffer)
@@ -27,11 +22,13 @@ public protocol RequestBuilderProtocol {
     mutating func reset()
 }
 
-public protocol HTTPServerHandlerType: ChannelInboundHandler where InboundIn == HTTPServerRequestPart, OutboundOut == HTTPServerResponsePart {
-    var requestHandler: RequestHandlerType { get }
+// Event loop group provider options
+public enum NIOEventLoopGroupProvider {
+    case createNew
+    case shared(EventLoopGroup)
 }
 
-// Note: Server needs to remain a class since it manages stateful resources (NIO EventLoopGroup)
+// Implementation
 public final class Server: ServerType {
     private let requestHandler: RequestHandlerType
     private let group: EventLoopGroup
@@ -88,27 +85,8 @@ public final class Server: ServerType {
     }
 }
 
-// Event loop group provider options
-public enum NIOEventLoopGroupProvider {
-    case createNew
-    case shared(EventLoopGroup)
-}
-
-// Router adapter that conforms to RequestHandlerType
-public struct RouterRequestHandler: RequestHandlerType {
-    private let router: RouterProtocol
-    
-    public init(router: RouterProtocol) {
-        self.router = router
-    }
-    
-    public func handle(request: Request) -> Response {
-        return router.route(request)
-    }
-}
-
-// Note: HTTPServerHandler must remain a class since it inherits from ChannelInboundHandler
-public final class HTTPServerHandler: ChannelInboundHandler, HTTPServerHandlerType {
+// HTTP Handler
+public final class HTTPServerHandler: ChannelInboundHandler {
     public typealias InboundIn = HTTPServerRequestPart
     public typealias OutboundOut = HTTPServerResponsePart
     
@@ -188,7 +166,7 @@ public final class HTTPServerHandler: ChannelInboundHandler, HTTPServerHandlerTy
     }
 }
 
-// RequestBuilder to construct the request from HTTP parts
+// RequestBuilder implementation
 public struct RequestBuilder: RequestBuilderProtocol {
     private var method: HTTPMethod?
     private var path: String?
@@ -211,8 +189,8 @@ public struct RequestBuilder: RequestBuilderProtocol {
             for pair in pairs {
                 let keyValue = pair.split(separator: "=", maxSplits: 1)
                 if keyValue.count == 2,
-                   let key = keyValue[0].removingPercentEncoding,
-                   let value = keyValue[1].removingPercentEncoding {
+                   let key = String(keyValue[0]).removingPercentEncoding,
+                   let value = String(keyValue[1]).removingPercentEncoding {
                     queryParams[key] = value
                 }
             }
@@ -264,3 +242,4 @@ public struct RequestBuilder: RequestBuilderProtocol {
         bodyData = Data()
     }
 }
+

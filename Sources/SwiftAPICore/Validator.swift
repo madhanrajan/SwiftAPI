@@ -5,7 +5,6 @@
 //  Created by Madhanrajan Varadharajan  on 26/02/2025.
 //
 
-// RequestValidator.swift
 import Foundation
 
 public protocol Validatable {
@@ -16,8 +15,16 @@ public protocol RequestValidator {
     func validate<T: Validatable>(_ value: T) throws
 }
 
-public struct ValidationError: Error {
-    let message: String
+public struct ValidationError: Error, CustomStringConvertible {
+    public let message: String
+    
+    public init(_ message: String) {
+        self.message = message
+    }
+    
+    public var description: String {
+        return message
+    }
 }
 
 public struct DefaultValidator: RequestValidator {
@@ -27,3 +34,4 @@ public struct DefaultValidator: RequestValidator {
         try value.validate()
     }
 }
+

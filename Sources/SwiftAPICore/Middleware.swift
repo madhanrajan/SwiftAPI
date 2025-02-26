@@ -5,7 +5,6 @@
 //  Created by Madhanrajan Varadharajan  on 26/02/2025.
 //
 
-// Middleware.swift
 import Foundation
 
 public protocol Middleware {
@@ -54,3 +53,19 @@ public struct CORSMiddleware: Middleware {
         return Response(statusCode: response.statusCode, headers: headers, body: response.body)
     }
 }
+
+public struct ErrorHandlingMiddleware: Middleware {
+    public init() {}
+    
+    public func process(request: Request, next: @escaping (Request) -> Response) -> Response {
+        do {
+            return next(request)
+        } catch {
+            return Response(
+                statusCode: 500,
+                body: ["error": "Internal server error", "message": error.localizedDescription]
+            )
+        }
+    }
+}
+

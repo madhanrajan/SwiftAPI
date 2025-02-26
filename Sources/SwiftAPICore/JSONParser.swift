@@ -5,7 +5,6 @@
 //  Created by Madhanrajan Varadharajan  on 26/02/2025.
 //
 
-// JSONParser.swift
 import Foundation
 
 public protocol JSONParser {
@@ -27,3 +26,4 @@ public struct DefaultJSONParser: JSONParser {
         try encoder.encode(value)
     }
 }
+
