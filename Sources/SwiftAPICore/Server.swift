@@ -9,31 +9,89 @@ import Foundation
 import NIO
 import NIOHTTP1
 
-// Protocols
+/**
+ * Protocol defining server functionality.
+ * A server is responsible for listening for incoming HTTP connections,
+ * processing requests, and sending responses.
+ */
 public protocol ServerType {
+    /**
+     * Starts the server on the specified host and port.
+     * - Parameters:
+     *   - host: The hostname or IP address to bind to
+     *   - port: The port number to listen on
+     */
     func start(host: String, port: Int)
+    
+    /**
+     * Stops the server and releases any resources.
+     */
     func stop()
 }
 
+/**
+ * Protocol defining request builder functionality.
+ * A request builder is responsible for constructing a Request object
+ * from the raw HTTP components received from the network.
+ */
 public protocol RequestBuilderProtocol {
+    /**
+     * Sets the HTTP request head (method, URI, version, headers).
+     * - Parameter header: The HTTP request head
+     */
     mutating func setHead(header: HTTPRequestHead)
+    
+    /**
+     * Appends data to the request body.
+     * - Parameter buffer: The buffer containing body data
+     */
     mutating func appendBody(buffer: ByteBuffer)
+    
+    /**
+     * Builds a Request object from the accumulated components.
+     * - Returns: A Request object, or nil if the request is invalid or incomplete
+     */
     func build() -> Request?
+    
+    /**
+     * Resets the builder to its initial state.
+     */
     mutating func reset()
 }
 
-// Event loop group provider options
+/**
+ * Enumeration of options for providing an event loop group to the server.
+ * This allows for flexibility in how the server's event loop is managed.
+ */
 public enum NIOEventLoopGroupProvider {
+    /// Create a new event loop group for the server
     case createNew
+    
+    /// Use a shared event loop group
     case shared(EventLoopGroup)
 }
 
-// Implementation
+/**
+ * Implementation of the ServerType protocol using SwiftNIO.
+ * This server uses SwiftNIO to handle low-level networking and HTTP parsing,
+ * and delegates request handling to a RequestHandlerType.
+ */
 public final class Server: ServerType {
+    /// The handler that will process HTTP requests
     private let requestHandler: RequestHandlerType
+    
+    /// The event loop group that will handle I/O events
     private let group: EventLoopGroup
+    
+    /// The channel that the server is listening on
     private var channel: Channel?
     
+    /**
+     * Initializes a new Server with the specified request handler and event loop group provider.
+     * - Parameters:
+     *   - requestHandler: The handler that will process HTTP requests
+     *   - eventLoopGroupProvider: The provider for the event loop group (defaults to creating a new group)
+     */
     public init(requestHandler: RequestHandlerType, eventLoopGroupProvider: NIOEventLoopGroupProvider = .createNew) {
         self.requestHandler = requestHandler
         
@@ -45,6 +103,14 @@ public final class Server: ServerType {
         }
     }
     
+    /**
+     * Starts the server on the specified host and port.
+     * This method configures the server, binds it to the specified address,
+     * and starts listening for incoming connections.
+     * - Parameters:
+     *   - host: The hostname or IP address to bind to
+     *   - port: The port number to listen on
+     */
     public func start(host: String, port: Int) {
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 256)
@@ -66,6 +132,10 @@ public final class Server: ServerType {
         }
     }
     
+    /**
+     * Stops the server and releases any resources.
+     * This method closes the server channel and shuts down the event loop group.
+     */
     public func stop() {
         do {
             try channel?.close().wait()
@@ -76,6 +146,9 @@ public final class Server: ServerType {
         }
     }
     
+    /**
+     * Deinitializer that ensures the event loop group is shut down when the server is deallocated.
+     */
     deinit {
         do {
             try group.syncShutdownGracefully()
@@ -85,18 +158,41 @@ public final class Server: ServerType {
     }
 }
 
-// HTTP Handler
+/**
+ * SwiftNIO channel handler that processes HTTP requests.
+ * This handler receives HTTP request parts from the network,
+ * builds a Request object, passes it to the request handler,
+ * and sends the response back to the client.
+ */
 public final class HTTPServerHandler: ChannelInboundHandler {
+    /// The type of inbound messages this handler expects
     public typealias InboundIn = HTTPServerRequestPart
+    
+    /// The type of outbound messages this handler produces
     public typealias OutboundOut = HTTPServerResponsePart
     
+    /// The handler that will process HTTP requests
     public let requestHandler: RequestHandlerType
+    
+    /// The builder that will construct Request objects from HTTP parts
     private var requestBuilder: RequestBuilderProtocol = RequestBuilder()
     
+    /**
+     * Initializes a new HTTPServerHandler with the specified request handler.
+     * - Parameter requestHandler: The handler that will process HTTP requests
+     */
     public init(requestHandler: RequestHandlerType) {
         self.requestHandler = requestHandler
     }
     
+    /**
+     * Handles incoming channel data.
+     * This method is called by SwiftNIO when data is received on the channel.
+     * It processes HTTP request parts and builds a complete request.
+     * - Parameters:
+     *   - context: The context for the channel handler
+     *   - data: The data received on the channel
+     */
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let reqPart = self.unwrapInboundIn(data)
         
@@ -119,6 +215,14 @@ public final class HTTPServerHandler: ChannelInboundHandler {
         }
     }
     
+    /**
+     * Sends an HTTP response to the client.
+     * This method converts a Response object into HTTP response parts
+     * and writes them to the channel.
+     * - Parameters:
+     *   - context: The context for the channel handler
+     *   - response: The response to send
+     */
     private func sendResponse(context: ChannelHandlerContext, response: Response) {
         var httpHeaders = HTTPHeaders()
         
@@ -157,6 +261,11 @@ public final class HTTPServerHandler: ChannelInboundHandler {
         }
     }
     
+    /**
+     * Sends an error response to the client.
+     * This method is called when the request builder fails to build a valid request.
+     * - Parameter context: The context for the channel handler
+     */
     private func sendErrorResponse(context: ChannelHandlerContext) {
         let errorResponse = Response(
             statusCode: 400,
@@ -166,16 +275,36 @@ public final class HTTPServerHandler: ChannelInboundHandler {
     }
 }
 
-// RequestBuilder implementation
+/**
+ * Implementation of the RequestBuilderProtocol.
+ * This struct builds a Request object from HTTP request parts.
+ */
 public struct RequestBuilder: RequestBuilderProtocol {
+    /// The HTTP method of the request
     private var method: HTTPMethod?
+    
+    /// The URL path of the request
     private var path: String?
+    
+    /// The query parameters of the request
     private var queryParams: [String: String] = [:]
+    
+    /// The HTTP headers of the request
     private var headers: [String: String] = [:]
+    
+    /// The accumulated body data of the request
     private var bodyData = Data()
     
+    /**
+     * Initializes a new empty RequestBuilder.
+     */
     public init() {}
     
+    /**
+     * Sets the HTTP request head (method, URI, version, headers).
+     * This method extracts the method, path, query parameters, and headers from the request head.
+     * - Parameter header: The HTTP request head
+     */
     public mutating func setHead(header: HTTPRequestHead) {
         method = HTTPMethod(rawValue: header.method.rawValue) ?? .get
         
@@ -202,11 +331,22 @@ public struct RequestBuilder: RequestBuilderProtocol {
         }
     }
     
+    /**
+     * Appends data to the request body.
+     * This method accumulates body data from multiple body parts.
+     * - Parameter buffer: The buffer containing body data
+     */
     public mutating func appendBody(buffer: ByteBuffer) {
         let bytes = buffer.getBytes(at: 0, length: buffer.readableBytes) ?? []
         bodyData.append(contentsOf: bytes)
     }
     
+    /**
+     * Builds a Request object from the accumulated components.
+     * This method creates a Request object with the method, path, headers, query parameters,
+     * and body that have been set. It attempts to parse the body as JSON if present.
+     * - Returns: A Request object, or nil if the method or path is missing
+     */
     public func build() -> Request? {
         guard let method = method, let path = path else {
             return nil
@@ -234,6 +374,10 @@ public struct RequestBuilder: RequestBuilderProtocol {
         )
     }
     
+    /**
+     * Resets the builder to its initial state.
+     * This method clears all accumulated data to prepare for building a new request.
+     */
     public mutating func reset() {
         method = nil
         path = nil
@@ -242,4 +386,3 @@ public struct RequestBuilder: RequestBuilderProtocol {
         bodyData = Data()
     }
 }
-

@@ -8,12 +8,25 @@
 import Foundation
 import SwiftAPICore
 
-// Parse command line arguments
+/**
+ * This is the main entry point for the SwiftAPI application.
+ * It creates a web server with several example routes and demonstrates
+ * how to use middleware, routing, and request/response handling.
+ */
+
+/**
+ * Parses command line arguments and environment variables to determine the host and port.
+ * Command line arguments take the form of --host [hostname] and --port [port].
+ * Environment variables HOST and PORT can override command line arguments.
+ * 
+ * - Returns: A tuple containing the host and port to use for the server
+ */
 func parseArgs() -> (host: String, port: Int) {
     let args = CommandLine.arguments
     var host = "localhost"
     var port = 8000
     
+    // Parse command line arguments
     for i in 0..<args.count {
         if args[i] == "--host" && i+1 < args.count {
             host = args[i+1]
@@ -38,37 +51,78 @@ func parseArgs() -> (host: String, port: Int) {
     return (host, port)
 }
 
-// Create and configure the API
+/**
+ * Create a new instance of the App class.
+ * The App class is the main entry point for creating a web application with SwiftAPI.
+ */
 var app = App()
 
-// Add middleware
+/**
+ * Add middleware to the application.
+ * Middleware is executed in the order it is added, for each request.
+ */
+// Add logging middleware to log requests and responses
 app.use(LoggingMiddleware())
+
+// Add CORS middleware to handle Cross-Origin Resource Sharing
 app.use(CORSMiddleware())
+
+// Add error handling middleware to catch and handle errors
 app.use(ErrorHandlingMiddleware())
 
-// Define routes
+/**
+ * Define routes for the application.
+ * Each route specifies an HTTP method, a path, and a handler function.
+ */
+/**
+ * Root endpoint that returns a welcome message and version information.
+ * Example: GET / -> {"message": "Welcome to SwiftAPI!", "version": "1.0.0"}
+ */
 app.get("/") { _ in
     Response(body: ["message": "Welcome to SwiftAPI!", "version": "1.0.0"])
 }
 
+/**
+ * Hello endpoint that returns a greeting message with the name provided in the query parameters.
+ * Example: GET /hello?name=John -> {"message": "Hello, John!"}
+ * Example: GET /hello -> {"message": "Hello, World!"}
+ */
 app.get("/hello") { request in
     let name = request.query["name"] ?? "World"
     return Response(body: ["message": "Hello, \(name)!"])
 }
 
+/**
+ * Echo endpoint that returns the request body as the response.
+ * This is useful for testing and debugging.
+ * Example: POST /echo {"foo": "bar"} -> {"received": {"foo": "bar"}}
+ */
 app.post("/echo") { request in
     return Response(body: ["received": request.body])
 }
 
+/**
+ * Time endpoint that returns the current date and time.
+ * Example: GET /time -> {"time": "2025-02-26 12:34:56 +0000"}
+ */
 app.get("/time") { _ in
     return Response(body: ["time": Date().description])
 }
 
+/**
+ * Health check endpoint that returns the status of the server.
+ * This is useful for monitoring and load balancing.
+ * Example: GET /health -> {"status": "UP"}
+ */
 app.get("/health") { _ in
     return Response(body: ["status": "UP"])
 }
 
-// Example JSON data route
+/**
+ * Users endpoint that returns a list of example users.
+ * In a real application, this would typically fetch data from a database.
+ * Example: GET /users -> {"users": [{"id": 1, "name": "John Doe", "email": "john@example.com"}, ...]}
+ */
 app.get("/users") { _ in
     let users: [[String: Any]] = [
         ["id": 1, "name": "John Doe", "email": "john@example.com"],
@@ -78,7 +132,14 @@ app.get("/users") { _ in
     return Response(body: ["users": users])
 }
 
-// Start the server
+/**
+ * Parse command line arguments and environment variables to determine the host and port.
+ */
 let config = parseArgs()
+
+/**
+ * Start the server and begin listening for incoming requests.
+ * This method will block the current thread and enter the main run loop.
+ */
 print("Starting SwiftAPI on http://\(config.host):\(config.port)")
 app.run(host: config.host, port: config.port)
